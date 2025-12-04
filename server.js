@@ -111,3 +111,26 @@ app.get('*', (req, res) => {
 app.listen(port, () => {
   console.log(`Server đang chạy tại port ${port}`);
 });
+
+// KẾT NỐI VÀ TẠO BẢNG DỮ LIỆU
+client.connect()
+  .then(async () => {
+    console.log('✅ Đã kết nối Database Render!');
+    
+    // --- ĐOẠN CODE THÊM MỚI ĐỂ TẠO BẢNG ---
+    const queryTaoBang = `
+      CREATE TABLE IF NOT EXISTS users (
+        id SERIAL PRIMARY KEY,
+        username VARCHAR(100) NOT NULL,
+        password VARCHAR(100),
+        data TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+    `;
+    // Lưu ý: Bạn cần sửa 'users', 'username'... thành tên đúng với dự án của bạn
+    
+    await client.query(queryTaoBang);
+    console.log('✅ Đã kiểm tra/tạo bảng dữ liệu thành công!');
+    // ----------------------------------------
+  })
+  .catch(err => console.error('❌ Lỗi DB:', err));
