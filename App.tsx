@@ -1,6 +1,6 @@
 
-import React, { useState, useEffect } from 'react';
-import { LayoutDashboard, Calendar, Grid2X2, Target, Trash2, Save, RotateCcw, BookOpen, LogOut } from 'lucide-react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { LayoutDashboard, Calendar, Grid2X2, Target, Trash2, Save, RotateCcw, BookOpen, LogOut, Cloud, RefreshCw } from 'lucide-react';
 import { DailyPlanner } from './components/DailyPlanner';
 import { Dashboard } from './components/Dashboard';
 import { Tools } from './components/Tools';
@@ -8,6 +8,7 @@ import { Pomodoro } from './components/Pomodoro';
 import { Learning } from './components/Learning';
 import { Login } from './components/Login';
 import { DailyLog, Task, TaskStatus, Quadrant, PickleSize, YearlyGoal, KnowledgeNote } from './types';
+import { api } from './services/api';
 
 // Default Data
 const DEFAULT_LOG: DailyLog = {
@@ -78,35 +79,9 @@ export default function App() {
   // --- AUTHENTICATION STATE ---
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
   const [isAuthChecking, setIsAuthChecking] = useState(true);
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [lastSynced, setLastSynced] = useState<Date | null>(null);
 
-  // Check auth on mount
-  useEffect(() => {
-      const storedAuth = localStorage.getItem('uf_auth');
-      if (storedAuth === 'true') {
-          setIsAuthenticated(true);
-      }
-      setIsAuthChecking(false);
-  }, []);
-
-  const handleLogin = (email: string, pass: string): boolean => {
-      if (email === USER_CREDENTIALS.email && pass === USER_CREDENTIALS.password) {
-          setIsAuthenticated(true);
-          localStorage.setItem('uf_auth', 'true');
-          return true;
-      }
-      return false;
-  };
-
-  const handleLogout = () => {
-      if (window.confirm("Bạn có chắc chắn muốn đăng xuất?")) {
-          setIsAuthenticated(false);
-          localStorage.removeItem('uf_auth');
-      }
-  };
-
-
-  const [activeTab, setActiveTab] = useState<'DASHBOARD' | 'PLANNER' | 'EISENHOWER' | 'RULE_5_25' | 'LEARNING'>('PLANNER');
-  
   // --- STATE WITH LOCALSTORAGE PERSISTENCE ---
 
   // 1. Log History
@@ -137,28 +112,129 @@ export default function App() {
   });
 
   // Current Log State (derived/synced from logHistory)
-  // We initialize it with today's log from history or default
   const todayKey = new Date().toISOString().split('T')[0];
   const [currentLog, setCurrentLog] = useState<DailyLog>(logHistory[todayKey] || { ...DEFAULT_LOG, date: todayKey });
 
-  // --- PERSISTENCE EFFECTS ---
+  // --- PERSISTENCE & SYNC LOGIC ---
+
+  // Load Auth from LocalStorage
   useEffect(() => {
+      const storedAuth = localStorage.getItem('uf_auth');
+      if (storedAuth === 'true') {
+          setIsAuthenticated(true);
+          // Trigger initial data load from Cloud
+          loadDataFromCloud();
+      }
+      setIsAuthChecking(false);
+  }, []);
+
+  // Save to LocalStorage on changes
+  useEffect(() => {
+      if (!isAuthenticated) return;
       localStorage.setItem('uf_logHistory', JSON.stringify(logHistory));
-  }, [logHistory]);
-
-  useEffect(() => {
       localStorage.setItem('uf_tasks', JSON.stringify(tasks));
-  }, [tasks]);
-
-  useEffect(() => {
       localStorage.setItem('uf_goals', JSON.stringify(goals));
-  }, [goals]);
-
-  useEffect(() => {
       localStorage.setItem('uf_knowledge', JSON.stringify(knowledgeBase));
-  }, [knowledgeBase]);
+      
+      // Auto-sync to cloud with debounce
+      const timeoutId = setTimeout(() => {
+         handleAutoSync();
+      }, 5000); // Sync after 5 seconds of inactivity
+      return () => clearTimeout(timeoutId);
+  }, [logHistory, tasks, goals, knowledgeBase, isAuthenticated]);
+
+  const loadDataFromCloud = async () => {
+    setIsSyncing(true);
+    try {
+        const cloudData = await api.loadData(USER_CREDENTIALS.email);
+        if (cloudData) {
+            // Update state with cloud data
+            if (cloudData.logHistory) setLogHistory(cloudData.logHistory);
+            if (cloudData.tasks) setTasks(cloudData.tasks);
+            if (cloudData.goals) setGoals(cloudData.goals);
+            if (cloudData.knowledgeBase) setKnowledgeBase(cloudData.knowledgeBase);
+            
+            // Update current log view if needed
+            const today = new Date().toISOString().split('T')[0];
+            if (cloudData.logHistory && cloudData.logHistory[today]) {
+                setCurrentLog(cloudData.logHistory[today]);
+            }
+            setLastSynced(new Date());
+            console.log("Data loaded from cloud");
+        }
+    } catch (error) {
+        console.error("Cloud load error:", error);
+    } finally {
+        setIsSyncing(false);
+    }
+  };
+
+  const handleAutoSync = async () => {
+      // Background sync, no loading spinner
+      try {
+          const appData = {
+              logHistory,
+              tasks,
+              goals,
+              knowledgeBase
+          };
+          await api.saveData(USER_CREDENTIALS.email, appData);
+          setLastSynced(new Date());
+      } catch (error) {
+          console.error("Auto sync failed:", error);
+      }
+  };
+
+  const handleManualSave = async () => {
+      setIsSyncing(true);
+      try {
+           const appData = {
+              logHistory,
+              tasks,
+              goals,
+              knowledgeBase
+          };
+          // Save to LocalStorage first
+          localStorage.setItem('uf_logHistory', JSON.stringify(logHistory));
+          localStorage.setItem('uf_tasks', JSON.stringify(tasks));
+          localStorage.setItem('uf_goals', JSON.stringify(goals));
+          localStorage.setItem('uf_knowledge', JSON.stringify(knowledgeBase));
+          
+          // Then save to Cloud
+          await api.saveData(USER_CREDENTIALS.email, appData);
+          setLastSynced(new Date());
+          alert("Đã đồng bộ dữ liệu lên Cloud thành công!");
+      } catch (error) {
+          alert("Lỗi đồng bộ Cloud. Vui lòng kiểm tra kết nối.");
+      } finally {
+          setIsSyncing(false);
+      }
+  };
+
+  const handleLogin = (email: string, pass: string): boolean => {
+      if (email === USER_CREDENTIALS.email && pass === USER_CREDENTIALS.password) {
+          setIsAuthenticated(true);
+          localStorage.setItem('uf_auth', 'true');
+          // Load data immediately after login
+          loadDataFromCloud();
+          return true;
+      }
+      return false;
+  };
+
+  const handleLogout = () => {
+      if (window.confirm("Bạn có chắc chắn muốn đăng xuất?")) {
+          setIsAuthenticated(false);
+          localStorage.removeItem('uf_auth');
+          // Optional: Clear data on logout if you want privacy on shared devices
+          // localStorage.clear(); 
+          // window.location.reload();
+      }
+  };
 
 
+  const [activeTab, setActiveTab] = useState<'DASHBOARD' | 'PLANNER' | 'EISENHOWER' | 'RULE_5_25' | 'LEARNING'>('PLANNER');
+  
   // Sync currentLog changes to history
   const updateCurrentLog = (newLog: DailyLog) => {
       setCurrentLog(newLog);
@@ -273,18 +349,9 @@ export default function App() {
       }
   };
 
-  // Feature: Manual Save
-  const handleManualSave = () => {
-      localStorage.setItem('uf_logHistory', JSON.stringify(logHistory));
-      localStorage.setItem('uf_tasks', JSON.stringify(tasks));
-      localStorage.setItem('uf_goals', JSON.stringify(goals));
-      localStorage.setItem('uf_knowledge', JSON.stringify(knowledgeBase));
-      alert("Đã lưu dữ liệu thành công!");
-  };
-
   // Feature: Reset App Data
   const handleResetApp = () => {
-      if (window.confirm("CẢNH BÁO: Hành động này sẽ xóa TOÀN BỘ dữ liệu của bạn. Bạn có chắc chắn không?")) {
+      if (window.confirm("CẢNH BÁO: Hành động này sẽ xóa TOÀN BỘ dữ liệu trên máy này. Dữ liệu trên Cloud vẫn còn nếu bạn đã đồng bộ.")) {
           localStorage.clear();
           window.location.reload();
       }
@@ -299,13 +366,12 @@ export default function App() {
     .length * 60; 
 
   // --- SRS: Calculate Due Flashcards for Today ---
-  // We check if currentLog.date (the view date) has any due reviews.
   const dueFlashcardsCount = knowledgeBase.reduce((acc, note) => {
       return acc + note.flashcards.filter(card => card.nextReviewDate <= currentLog.date).length;
   }, 0);
 
   // RENDER: LOGIN OR APP
-  if (isAuthChecking) return null; // Or a loading spinner
+  if (isAuthChecking) return null; 
   
   if (!isAuthenticated) {
       return <Login onLogin={handleLogin} />;
@@ -317,7 +383,10 @@ export default function App() {
       <aside className="w-64 bg-white border-r border-gray-200 hidden md:flex flex-col fixed h-full z-10 no-print">
         <div className="p-6">
           <h1 className="text-2xl font-extrabold text-indigo-600 tracking-tight">ULTIMATE FLOW</h1>
-          <p className="text-xs text-gray-400 mt-1">Hiệu suất mỗi ngày</p>
+          <div className="flex items-center text-xs text-green-600 mt-1">
+             <Cloud size={12} className="mr-1"/> 
+             {isSyncing ? 'Đang đồng bộ...' : 'Đã kết nối Database'}
+          </div>
         </div>
 
         <nav className="flex-1 px-4 space-y-2">
@@ -365,23 +434,18 @@ export default function App() {
           <div className="flex flex-col gap-2">
             <div className="flex items-center justify-between text-xs text-gray-400 px-2">
                  <div className="flex items-center gap-2">
-                     <span className="flex items-center" title="Dữ liệu được tự động lưu"><Save size={12} className="mr-1"/> Auto</span>
-                     <button 
-                        onClick={handleManualSave}
-                        className="bg-gray-100 hover:bg-indigo-50 text-gray-600 hover:text-indigo-600 px-2 py-0.5 rounded border border-gray-200 transition-colors font-semibold"
-                        title="Lưu dữ liệu ngay lập tức"
-                     >
-                        Lưu ngay
-                     </button>
+                     <span className="flex items-center" title="Dữ liệu được tự động đồng bộ"><RefreshCw size={12} className={`mr-1 ${isSyncing ? 'animate-spin' : ''}`}/> Auto Sync</span>
                  </div>
-                 <button 
-                    onClick={handleResetApp} 
-                    className="text-red-400 hover:text-red-600 flex items-center"
-                    title="Xóa dữ liệu & Reset"
-                >
-                     <RotateCcw size={12} className="mr-1"/> Reset
-                 </button>
             </div>
+             <button 
+                onClick={handleManualSave}
+                disabled={isSyncing}
+                className="bg-indigo-50 hover:bg-indigo-100 text-indigo-600 px-3 py-2 rounded-lg border border-indigo-200 transition-colors font-bold text-sm flex items-center justify-center"
+                title="Lưu & Đồng bộ ngay lập tức"
+             >
+                <Cloud size={16} className="mr-2"/> 
+                {isSyncing ? 'Đang lưu...' : 'Đồng bộ ngay'}
+             </button>
             
             <button 
                 onClick={handleLogout}
