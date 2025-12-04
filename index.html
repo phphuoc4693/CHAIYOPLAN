@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="vi">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Hiệu Suất Tối Ưu</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&family=Patrick+Hand&display=swap" rel="stylesheet">
+    <style>
+      body {
+        font-family: 'Nunito', sans-serif;
+        background-color: #f3f4f6;
+      }
+      .handwriting {
+        font-family: 'Patrick Hand', cursive;
+      }
+      
+      /* Print Styles */
+      @media print {
+        @page { 
+            size: A4 portrait; 
+            margin: 0; 
+        }
+        
+        body { 
+            background-color: white; 
+            -webkit-print-color-adjust: exact !important; 
+            print-color-adjust: exact !important;
+            margin: 0;
+            padding: 0;
+            overflow: visible !important;
+        }
+        
+        /* Hide everything by default */
+        body > * {
+            display: none !important;
+        }
+
+        /* Only display the root app */
+        #root {
+            display: block !important;
+        }
+
+        /* Hide Sidebar and Navigation */
+        aside, nav, .no-print { 
+            display: none !important; 
+        }
+
+        /* Reset Main Container Layout */
+        main {
+            display: block !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            width: 100% !important;
+            height: auto !important;
+            overflow: visible !important;
+        }
+
+        /* Target the DailyPlanner container explicitly */
+        .print-container { 
+            display: block !important;
+            position: absolute !important;
+            top: 0 !important;
+            left: 0 !important;
+            width: 210mm !important; 
+            min-height: 297mm !important; 
+            padding: 10mm !important; 
+            margin: 0 auto !important;
+            background: white !important;
+            box-shadow: none !important;
+            border: none !important;
+        }
+
+        /* 
+           INPUT HANDLING FOR PRINT 
+           Hide actual inputs and show the print-only text divs 
+        */
+        input:not(.print-border), textarea {
+            display: none !important;
+        }
+        
+        /* Elements that are only visible when printing (to replace inputs) */
+        .print-only-text {
+            display: block !important;
+            font-family: 'Patrick Hand', cursive; /* Keep handwriting style */
+            white-space: pre-wrap; /* Preserve line breaks */
+            overflow-wrap: break-word;
+        }
+        
+        /* Keep specific structural borders */
+        .print-border {
+            border: 2px solid #1f2937 !important; /* gray-800 */
+        }
+        
+        /* Ensure layout grids work */
+        .print\:grid {
+            display: grid !important;
+        }
+        .print\:grid-cols-12 {
+            grid-template-columns: repeat(12, minmax(0, 1fr)) !important;
+        }
+        .print\:col-span-4 {
+            grid-column: span 4 / span 4 !important;
+        }
+        .print\:gap-4 {
+            gap: 1rem !important;
+        }
+    }
+
+    /* Helper class to hide print-text in normal view */
+    .print-only-text {
+        display: none;
+    }
+
+    /* Custom Scrollbar */
+      ::-webkit-scrollbar {
+        width: 8px;
+        height: 8px;
+      }
+      ::-webkit-scrollbar-track {
+        background: #f1f1f1; 
+      }
+      ::-webkit-scrollbar-thumb {
+        background: #cbd5e1; 
+        border-radius: 4px;
+      }
+      ::-webkit-scrollbar-thumb:hover {
+        background: #94a3b8; 
+      }
+    </style>
+  <script type="importmap">
+{
+  "imports": {
+    "react": "https://aistudiocdn.com/react@18.3.1",
+    "react-dom/": "https://aistudiocdn.com/react-dom@18.3.1/",
+    "react/": "https://aistudiocdn.com/react@18.3.1/",
+    "lucide-react": "https://aistudiocdn.com/lucide-react@0.292.0",
+    "recharts": "https://aistudiocdn.com/recharts@2.12.7"
+  }
+}
+</script>
+<link rel="stylesheet" href="/index.css">
+</head>
+  <body>
+    <div id="root"></div>
+  <script type="module" src="/index.tsx"></script>
+</body>
+</html>
