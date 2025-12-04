@@ -935,5 +935,6 @@ export const DailyPlanner: React.FC<DailyPlannerProps> = ({ log, setLog, onDateC
         </div>
         )}
     </div>
+  </div> 
   );
 };
