@@ -1,11 +1,12 @@
 
 import React, { useState, useEffect } from 'react';
-import { LayoutDashboard, Calendar, Grid2X2, Target, Trash2, Save, RotateCcw, BookOpen } from 'lucide-react';
+import { LayoutDashboard, Calendar, Grid2X2, Target, Trash2, Save, RotateCcw, BookOpen, LogOut } from 'lucide-react';
 import { DailyPlanner } from './components/DailyPlanner';
 import { Dashboard } from './components/Dashboard';
 import { Tools } from './components/Tools';
 import { Pomodoro } from './components/Pomodoro';
 import { Learning } from './components/Learning';
+import { Login } from './components/Login';
 import { DailyLog, Task, TaskStatus, Quadrant, PickleSize, YearlyGoal, KnowledgeNote } from './types';
 
 // Default Data
@@ -67,7 +68,43 @@ const getWeekKey = (dateStr: string) => {
   return `${year}-W${week}`;
 };
 
+// Hardcoded Credentials
+const USER_CREDENTIALS = {
+    email: 'tantrangnha2022@gmail.com',
+    password: '9612713@A'
+};
+
 export default function App() {
+  // --- AUTHENTICATION STATE ---
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
+  const [isAuthChecking, setIsAuthChecking] = useState(true);
+
+  // Check auth on mount
+  useEffect(() => {
+      const storedAuth = localStorage.getItem('uf_auth');
+      if (storedAuth === 'true') {
+          setIsAuthenticated(true);
+      }
+      setIsAuthChecking(false);
+  }, []);
+
+  const handleLogin = (email: string, pass: string): boolean => {
+      if (email === USER_CREDENTIALS.email && pass === USER_CREDENTIALS.password) {
+          setIsAuthenticated(true);
+          localStorage.setItem('uf_auth', 'true');
+          return true;
+      }
+      return false;
+  };
+
+  const handleLogout = () => {
+      if (window.confirm("Bạn có chắc chắn muốn đăng xuất?")) {
+          setIsAuthenticated(false);
+          localStorage.removeItem('uf_auth');
+      }
+  };
+
+
   const [activeTab, setActiveTab] = useState<'DASHBOARD' | 'PLANNER' | 'EISENHOWER' | 'RULE_5_25' | 'LEARNING'>('PLANNER');
   
   // --- STATE WITH LOCALSTORAGE PERSISTENCE ---
@@ -267,6 +304,13 @@ export default function App() {
       return acc + note.flashcards.filter(card => card.nextReviewDate <= currentLog.date).length;
   }, 0);
 
+  // RENDER: LOGIN OR APP
+  if (isAuthChecking) return null; // Or a loading spinner
+  
+  if (!isAuthenticated) {
+      return <Login onLogin={handleLogin} />;
+  }
+
   return (
     <div className="flex min-h-screen bg-gray-50 font-sans text-gray-800">
       {/* Sidebar - Hidden on print */}
@@ -318,24 +362,33 @@ export default function App() {
         <div className="p-4 border-t border-gray-100 space-y-4">
           <Pomodoro />
           
-          <div className="flex items-center justify-between text-xs text-gray-400 px-2">
-             <div className="flex items-center gap-2">
-                 <span className="flex items-center" title="Dữ liệu được tự động lưu"><Save size={12} className="mr-1"/> Tự động lưu</span>
+          <div className="flex flex-col gap-2">
+            <div className="flex items-center justify-between text-xs text-gray-400 px-2">
+                 <div className="flex items-center gap-2">
+                     <span className="flex items-center" title="Dữ liệu được tự động lưu"><Save size={12} className="mr-1"/> Auto</span>
+                     <button 
+                        onClick={handleManualSave}
+                        className="bg-gray-100 hover:bg-indigo-50 text-gray-600 hover:text-indigo-600 px-2 py-0.5 rounded border border-gray-200 transition-colors font-semibold"
+                        title="Lưu dữ liệu ngay lập tức"
+                     >
+                        Lưu ngay
+                     </button>
+                 </div>
                  <button 
-                    onClick={handleManualSave}
-                    className="bg-gray-100 hover:bg-indigo-50 text-gray-600 hover:text-indigo-600 px-2 py-0.5 rounded border border-gray-200 transition-colors font-semibold"
-                    title="Lưu dữ liệu ngay lập tức"
-                 >
-                    Lưu ngay
+                    onClick={handleResetApp} 
+                    className="text-red-400 hover:text-red-600 flex items-center"
+                    title="Xóa dữ liệu & Reset"
+                >
+                     <RotateCcw size={12} className="mr-1"/> Reset
                  </button>
-             </div>
-             <button 
-                onClick={handleResetApp} 
-                className="text-red-400 hover:text-red-600 flex items-center"
-                title="Xóa dữ liệu & Reset"
+            </div>
+            
+            <button 
+                onClick={handleLogout}
+                className="w-full mt-2 flex items-center justify-center px-4 py-2 bg-gray-800 text-white rounded-lg text-sm font-bold hover:bg-gray-900 transition-colors"
             >
-                 <RotateCcw size={12} className="mr-1"/> Reset
-             </button>
+                <LogOut size={16} className="mr-2" /> Đăng xuất
+            </button>
           </div>
         </div>
       </aside>
